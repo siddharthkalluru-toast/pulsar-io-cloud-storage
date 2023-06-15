@@ -81,47 +81,69 @@ public class ParquetFormat implements Format<GenericRecord>, InitConfiguration<B
 
     @Override
     public void initSchema(org.apache.pulsar.client.api.Schema<GenericRecord> schema) {
+        log.info("TOAST: About to initSchema");
         if (!schema.equals(internalSchema)) {
+            log.info("TOAST: Schema is not equal to internalSchema.  Will attempt to get new schema descriptor.");
+
             internalSchema = schema;
             if (internalSchema.getSchemaInfo().getType().isPrimitive()) {
                 throw new UnsupportedOperationException(
                         "Parquet format do not support primitive record (schemaType=" + internalSchema.getSchemaInfo()
                                 .getType() + ")");
             }
+            log.info("TOAST: Schema type isn't primitive.");
+            log.info("TOAST: Schema type is - {}", internalSchema.getSchemaInfo().getType());
+
             if (internalSchema.getSchemaInfo().getType() == SchemaType.PROTOBUF_NATIVE) {
+                log.info("TOAST: Schema type detected as PROTOBUF_NATIVE ");
+
                 if (useMetadata) {
+                    log.info("TOAST: Schema type detected as PROTOBUF_NATIVE - useMetaData is set to TRUE ");
+
                     // Very hacky way to append metadata schema into protobuf message's descriptor.
                     try {
                         ProtobufNativeSchemaData schemaData =
                                 new ObjectMapper().readValue(internalSchema.getSchemaInfo().getSchema(),
                                 ProtobufNativeSchemaData.class);
+                        log.info("TOAST: Deserialized Schema Data using ProtobufNativeSchemaData.class");
 
                         // Get the descriptor from the pulsar schema.
                         Map<String, DescriptorProtos.FileDescriptorProto> fileDescriptorProtoCache = new HashMap<>();
                         Map<String, Descriptors.FileDescriptor> fileDescriptorCache = new HashMap<>();
                         DescriptorProtos.FileDescriptorSet fileDescriptorSet =
                                 DescriptorProtos.FileDescriptorSet.parseFrom(schemaData.getFileDescriptorSet());
+                        log.info("TOAST: Parsed file descriptor set");
+
                         fileDescriptorSet.getFileList().forEach(fileDescriptorProto ->
                                 fileDescriptorProtoCache.put(fileDescriptorProto.getName(), fileDescriptorProto));
+                        log.info("TOAST: Added file descriptor to cache");
 
                         // rootFileDescriptorProto is the targeting file descriptor.
                         DescriptorProtos.FileDescriptorProto rootFileDescriptorProto =
                                 fileDescriptorProtoCache.get(schemaData.getRootFileDescriptorName());
+                        log.info(
+                                "TOAST: Is the rootFileDescriptorProtoAvailable in the cache - {}",
+                                rootFileDescriptorProto == null
+                        );
 
                         // get metadata descriptor.
                         Descriptors.Descriptor metadataDescriptor =
                                 Metadata.PulsarIOCSCProtobufMessageMetadata.getDescriptor();
+                        log.info("TOAST: Is the metadataDescriptor Available - {}", metadataDescriptor == null);
 
                         // put the metadata ile descriptor into the file descriptor cache
                         // so it can be used in the next step.
                         fileDescriptorCache.put(metadataDescriptor.getFile().getName(), metadataDescriptor.getFile());
+                        log.info("TOAST: Added metadataDescriptor to fileDescriptorCache");
 
                         // get the root descriptor builder
                         DescriptorProtos.FileDescriptorProto.Builder rootFileDescriptorProtoBuilder =
                                 rootFileDescriptorProto.toBuilder();
+                        log.info("TOAST: Using rootFileDescriptorProtoBuilder");
 
                         // add the metadata descriptor to the root file descriptor.
                         rootFileDescriptorProtoBuilder.addDependency(metadataDescriptor.getFile().getName());
+                        log.info("TOAST: Added the metadata descriptor to the root file descriptor.");
 
                         String[] paths = StringUtils.removeFirst(schemaData.getRootMessageTypeName(),
                                         rootFileDescriptorProtoBuilder.getPackage())
@@ -134,6 +156,8 @@ public class ParquetFormat implements Format<GenericRecord>, InitConfiguration<B
                                 .filter(descriptorProto ->
                                         descriptorProto.getName().equals(finalPaths[0])).findFirst()
                                 .orElseThrow(() -> new RuntimeException("Root message not found"));
+                        log.info("TOAST: Extracted root message");
+
                         //extract nested message
                         for (int i = 1; i < paths.length; i++) {
                             final int finalI = i;
@@ -141,10 +165,12 @@ public class ParquetFormat implements Format<GenericRecord>, InitConfiguration<B
                                     v -> v.getName().equals(finalPaths[finalI])).findFirst()
                                     .orElseThrow(() -> new RuntimeException("Root message not found"));
                         }
+                        log.info("TOAST: Extracted nested message");
 
                         // find the message's descriptor, convert to builder, and try to add the metadata field.
                         DescriptorProtos.FieldDescriptorProto.Builder metadataField =
                                 DescriptorProtos.FieldDescriptorProto.newBuilder();
+                        log.info("TOAST: Initialized builder for message descriptor");
 
                         // find the number position of the metadata field.
                         int maxNumber = descriptorBuilder.getFieldList().stream()
@@ -156,24 +182,32 @@ public class ParquetFormat implements Format<GenericRecord>, InitConfiguration<B
                                 .setNumber(maxNumber + 1)
                                 .setTypeName(metadataDescriptor.getName());
                         descriptorBuilder.addField(metadataField);
+                        log.info("TOAST: Added message's descriptor to metadata field");
 
                         rootFileDescriptorProto = rootFileDescriptorProtoBuilder.build();
                         //recursively build FileDescriptor
                         deserializeFileDescriptor(rootFileDescriptorProto,
                                 fileDescriptorCache, fileDescriptorProtoCache);
+                        log.info("TOAST: FileDescriptor built");
+
                         //extract root fileDescriptor
                         Descriptors.FileDescriptor fileDescriptor =
                                 fileDescriptorCache.get(schemaData.getRootFileDescriptorName());
+                        log.info("TOAST: Is root FileDescriptor available in the cache - {}", fileDescriptor == null);
+
                         //trim package
                         paths = StringUtils.removeFirst(schemaData.getRootMessageTypeName(),
                                         fileDescriptor.getPackage())
                                 .replaceFirst("\\.", "").split("\\.");
                         //extract root message
                         descriptor = fileDescriptor.findMessageTypeByName(paths[0]);
+                        log.info("TOAST: Was root FileDescriptor extracted successfully - {}", descriptor == null);
+
                         //extract nested message
                         for (int i = 1; i < paths.length; i++) {
                             descriptor = descriptor.findNestedTypeByName(paths[i]);
                         }
+
                     } catch (IOException e) {
                         throw new UnsupportedOperationException("Cannot extract schema from record", e);
                     }
@@ -192,6 +226,8 @@ public class ParquetFormat implements Format<GenericRecord>, InitConfiguration<B
             if (descriptor == null && rootAvroSchema == null) {
                 throw new UnsupportedOperationException("Cannot extract schema from record");
             }
+        } else {
+            log.info("TOAST: Don't need to initSchema. Descriptor - {}", descriptor);
         }
     }
 
