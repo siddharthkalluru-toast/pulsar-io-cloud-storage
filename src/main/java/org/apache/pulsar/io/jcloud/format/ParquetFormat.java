@@ -91,6 +91,7 @@ public class ParquetFormat implements Format<GenericRecord>, InitConfiguration<B
                         "Parquet format do not support primitive record (schemaType=" + internalSchema.getSchemaInfo()
                                 .getType() + ")");
             }
+
             log.info("TOAST: Schema type isn't primitive.");
             log.info("TOAST: Schema type is - {}", internalSchema.getSchemaInfo().getType());
 
@@ -213,7 +214,9 @@ public class ParquetFormat implements Format<GenericRecord>, InitConfiguration<B
                     }
                 } else {
                     descriptor = (Descriptors.Descriptor) internalSchema.getNativeSchema().orElse(null);
+                    log.info("TOAST: NOT PROTOBUF_NATIVE. Descriptor from Native Schema: {}", descriptor);
                 }
+
                 log.info("Using protobuf descriptor: {}", descriptor.toProto().getFieldList());
             } else {
                 rootAvroSchema = AvroRecordUtil.convertToAvroSchema(schema);
