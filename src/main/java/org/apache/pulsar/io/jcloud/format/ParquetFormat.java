@@ -99,7 +99,7 @@ public class ParquetFormat implements Format<GenericRecord>, InitConfiguration<B
                 log.info("TOAST: Schema type detected as PROTOBUF_NATIVE ");
 
                 if (useMetadata) {
-                    log.info("TOAST: Schema type detected as PROTOBUF_NATIVE - useMetaData is set to TRUE ");
+                    log.info("TOAST: useMetaData is set to TRUE ");
 
                     // Very hacky way to append metadata schema into protobuf message's descriptor.
                     try {
@@ -214,7 +214,7 @@ public class ParquetFormat implements Format<GenericRecord>, InitConfiguration<B
                     }
                 } else {
                     descriptor = (Descriptors.Descriptor) internalSchema.getNativeSchema().orElse(null);
-                    log.info("TOAST: NOT PROTOBUF_NATIVE. Descriptor from Native Schema: {}", descriptor);
+                    log.info("TOAST: useMetaData is set to False. Descriptor from Native Schema: {}", descriptor);
                 }
 
                 log.info("Using protobuf descriptor: {}", descriptor.toProto().getFieldList());
