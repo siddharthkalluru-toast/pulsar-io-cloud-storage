@@ -82,6 +82,9 @@ public class ParquetFormat implements Format<GenericRecord>, InitConfiguration<B
     @Override
     public void initSchema(org.apache.pulsar.client.api.Schema<GenericRecord> schema) {
         log.info("TOAST: About to initSchema");
+        log.info("TOAST: Schema encountered: {}", schema);
+        log.info("TOAST: InternalSchema: {}", internalSchema);
+
         if (!schema.equals(internalSchema)) {
             log.info("TOAST: Schema is not equal to internalSchema.  Will attempt to get new schema descriptor.");
 
